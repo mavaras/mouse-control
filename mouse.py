@@ -2,7 +2,9 @@ import cv2
 import numpy as np
 import math
 
-cap = cv2.VideoCapture(0);     
+
+kernel = np.ones((7,7),np.uint8);
+cap = cv2.VideoCapture(0);
 while(1):
     try:
         ret, frame = cap.read();
@@ -10,21 +12,30 @@ while(1):
         
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV);
         
-        # define range of blue color in HSV
-        lower = np.array([0,90,200]);
-        upper = np.array([10,255,255]);
+        # define range of red color in HSV (tono, saturación, valor)
+        #[158,85,72],[180 ,255,255]
+        lower = np.array([0,80,70]); # 90 200
+        upper = np.array([0,110,110]);
+        #lower = np.array([0,0,110]); # 90 200
+        #upper = np.array([30,25,255]);
     
-        # Threshold the HSV image to get only blue colors
+        # Threshold the HSV image to get only red colors
         mask = cv2.inRange(hsv, lower, upper);
     
+        mask_eroded = cv2.erode(mask, kernel, iterations=1);
+        mask_dilated = cv2.dilate(mask_eroded, kernel, iterations=1);
+        mask = mask_dilated;
+        #cv2.imshow("d", mask);
+        #cv2.imshow("dd", frame);
         # Bitwise-AND mask and original image
+        
         res = cv2.bitwise_and(frame, frame, mask = mask);
-                
         # Find contours
-        _,contours,hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE);
-        cv2.drawContours(frame, contours, -1, (0,255,0), 2);
-        cv2.circle(frame, (contours[0][0][0][0],50), 5, [0,0,255], -1);
+        #_,contours,hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE);
+        #cv2.drawContours(frame, contours, -1, (0,255,0), 2);
+        #cv2.circle(frame, (contours[0][0][0][0],50), 5, [0,0,255], -1);
         #cv2.circle(frame, (contours[0][0][0][0],contours[0][0][0][1]), 5, [0,0,255], -1);
+        
         """
         if(contours != None):
             #cv2.drawContours(frame, contours, -1, (0,255,0), 3)
