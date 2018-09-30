@@ -3,7 +3,7 @@ import numpy as np
 import math
 
 
-kernel = np.ones((7,7),np.uint8);
+kernel = np.ones((9,9),np.uint8);
 cap = cv2.VideoCapture(0);
 while(1):
     try:
