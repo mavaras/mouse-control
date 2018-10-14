@@ -12,6 +12,7 @@ from skimage.exposure import equalize_hist
 from skimage.color import rgb2gray
 
 
+# functions definition
 def nothing(x):
     pass;
 
@@ -42,6 +43,10 @@ def create_mask(lower_range, upper_range):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8));
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((20, 20), np.uint8));
 
+    mask = cv2.erode(mask, np.ones((5, 5)), iterations = 2);
+    #mask = maximum(mask, square(5));
+    #mask = minimum(mask, square(3));
+
     return mask;
 
 # Shows windows
@@ -52,25 +57,28 @@ def display_windows():
 # Creates and set the calibration GUI
 def create_calibration_gui(n):
     cv2.namedWindow(n);
-    cv2.resizeWindow(n, 400, 400);
+    cv2.resizeWindow(n, 300, 300);
     cv2.createTrackbar("hue", n, 0, 255, nothing);
     cv2.createTrackbar("sat", n, 0, 255, nothing);
     cv2.createTrackbar("lightness", n, 0, 255, nothing);
 
 
+# main block
 if __name__ == "__main__":
-    name = "calibration";
+    window_name = "calibration";
     mouse = Controller();
     camera_dim = [640, 480];
     region_of_interest = [580, 420];
     start = False;
     mouse_pos_prev = (0, 0);
+    flag = False;
 
-    create_calibration_gui(name);
+    create_calibration_gui(window_name);
 
     # Getting video capture
-    cap = cv2.VideoCapture(0);
-    cap.set(cv2.CAP_PROP_BRIGHTNESS, -4);
+    cap = cv2.VideoCapture(1);
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, -2);
+    print("frame brightness:",cv2.CAP_PROP_BRIGHTNESS);
 
     # Main loop
     while(1):
@@ -86,40 +94,70 @@ if __name__ == "__main__":
         hsl = cv2.cvtColor(frame, cv2.COLOR_RGB2HLS);
 
         # Get trackbars HSL vaules, hue, saturation, lightness (tonalidad, saturación, brillo)
-        hue = cv2.getTrackbarPos("hue", name);
-        sat = cv2.getTrackbarPos("sat", name);
-        lig = cv2.getTrackbarPos("lightness", name);
+        hue = cv2.getTrackbarPos("hue", window_name);
+        sat = cv2.getTrackbarPos("sat", window_name);
+        lig = cv2.getTrackbarPos("lightness", window_name);
+
+        # red -> 111 58 40
 
         # Setting color filter
         lower = np.array([hue, sat, lig]);
         upper = np.array([180, 255, 255]);
 
         mask = create_mask(lower, upper);
-
+        #frame = hsl
         # Working with the contours of the mask
         _, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE);
         cv2.drawContours(frame, contours, -1, (0, 255, 0), 2);
 
+        points = [];
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt);
+            #print("cnt len (nº of points)",len(cnt));
 
             cnt_area = cv2.contourArea(cnt);
+            print("cnt_area:",cnt_area)
             diagonal_d = math.hypot(x - x + w, y - y + h); # diagonal length
-            if diagonal_d > 80 and cnt_area > 2000:
+            if cnt_area > 650:
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2);
                 cv2.line(frame, (x, y), (x + w, y + h), (255, 0, 0), 2);
                 cv2.line(frame, (x + w, y), (x, y + h), (255, 0, 0), 2);
                 cx, cy = line_intersection(((x, y), (x + w, y + h)), ((x + w, y), (x, y + h)));
-                cv2.putText(frame, "(" + str(int(cx)) + ", " + str(int(cy)) + ")", (130, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                            (0, 0, 255), 2, cv2.LINE_AA);
+                points.append((int(cx), int(cy)));
                 cv2.circle(frame, (int(cx), int(cy)), 4, [32, 255, 255], -1);
+
+            if len(points) >= 2:
+                print("_______________________________________")
+                flag = True;
+                print("->",points[0][0],".",points[0][1])
+                print("->", points[1][0], ",", points[1][1])
+                print("->",(int(points[0][0] + points[1][0] / 2),
+                            int(points[0][1] + points[1][1] / 2)))
+                aux = points[0][0] + points[1][0] / 2;
+                cv2.line(frame, points[0], points[1], (0, 255, 255), 2);
+                point = (int((points[0][0] + points[1][0]) / 2),
+                         int((points[0][1] + points[1][1]) / 2));
+                cv2.circle(frame, point, 4, [32, 0, 255], -1);
+                points.clear();
+
+                s = "("+str(point[0])+","+str(point[1])+")";
+                cv2.putText(frame, s, (300, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA);
                 if start:
                     #pya.moveTo(4*(int(cx)-130), 4*(int(cy)-130), 0.00001, pya.easeInOutQuad);
                     mouse_pos = (4 * (int(cx) - 170), 4 * (int(cy) - 170));
+                    mouse_pos = (4 * (point[0] - 170), 4 * (point[1] - 170));
+                    print("mouse position:",mouse_pos);
                     if math.hypot(mouse_pos[0] - mouse_pos_prev[0], mouse_pos[1] - mouse_pos_prev[1]) > 10:
                         mouse.position = mouse_pos;
                         mouse_pos_prev = mouse_pos;
 
+                cv2.putText(frame, "N", (550, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA);
+
+            elif len(points) == 1 and cnt_area > 2000:
+                print("____________mira!");
+                cv2.putText(frame, "S", (550, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA);
+                flag = False;
+                points.clear();
 
         # Showing the lower colour range chosen in the trackbars
         cv2.circle(frame, (50, 50), 35, [hue, sat, lig], -1);
@@ -136,7 +174,8 @@ if __name__ == "__main__":
                 start = False;
             else:
                 start = True;
-
+        elif k == ord("v"):
+            mouse.click(Button.left, 1);
 
     # Releasing video capture
     cap.release();
